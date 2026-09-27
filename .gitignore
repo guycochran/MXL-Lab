@@ -10,3 +10,6 @@ setup.log
 # Python
 __pycache__/
 *.pyc
+
+# Lint cache
+.ruff_cache/

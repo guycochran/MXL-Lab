@@ -12,6 +12,8 @@ when `setup.sh` runs or when the Docker image is built, under its own licence.
 | vcpkg | Dependencies for the MXL build | MIT | https://github.com/microsoft/vcpkg |
 | OpenCV (opencv-python-headless) | Face detection runtime | Apache-2.0 | https://opencv.org |
 | YuNet face detection model | Autoframing | MIT, Copyright (c) 2020 Shiqi Yu | https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet |
+| linuxptp (ptp4l, phc2sys, pmc) | PTP, run as separate programs from Ubuntu packages | GPL-2.0 | https://linuxptp.nwtime.org |
+| ethtool, iproute2 | Interface and timestamping details for the GUI | GPL-2.0 | Ubuntu packages |
 | FastAPI | GUI backend | MIT | https://github.com/fastapi/fastapi |
 | Uvicorn | GUI web server | BSD-3-Clause | https://github.com/encode/uvicorn |
 | Docker SDK for Python | GUI container control | Apache-2.0 | https://github.com/docker/docker-py |

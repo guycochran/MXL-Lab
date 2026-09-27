@@ -1,10 +1,20 @@
-# MXL lab image: MXL SDK and tools, MXL and NDI GStreamer plugins,
-# OpenCV and the YuNet face model. One image for all four functions.
+# MXL lab image: MXL SDK and tools, MXL and NDI GStreamer plugins, OpenCV,
+# the YuNet face model and linuxptp. One image for every lab function.
 #
-# UBUNTU is set by setup.sh to match the VM, so the container builds
-# on the same release the lab was proven on. Defaults to 24.04.
+# UBUNTU is set by setup.sh to match the VM. Defaults to 24.04.
 ARG UBUNTU=24.04
 FROM ubuntu:${UBUNTU}
+
+# Pinned upstream sources, so every build gets the same code. Update these
+# deliberately and rebuild; scripts/pin-from-image.sh writes the versions an
+# existing, working image was built from.
+ARG RUST_TOOLCHAIN=1.98.1
+ARG VCPKG_REF=07f4812200df3d3c931c0c8a6081d3b21fe2bf9f
+ARG MXL_REF=d64a94837a61eccaabfa9b4d1313edd13b03acec
+ARG GST_PLUGINS_RS_REF=8d285659a2d3db5760f90cfa6993391f6380b348
+ARG OPENCV_VERSION=5.0.0.93
+ARG YUNET_REF=47534e27c9851bb1128ccc0102f1145e27f23f98
+ARG YUNET_SHA256=8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -22,11 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain stable
+    | sh -s -- -y --profile minimal --default-toolchain "${RUST_TOOLCHAIN}"
 ENV PATH=/root/.cargo/bin:$PATH
 
 # vcpkg, required by the MXL CMake presets
-RUN git clone --depth 1 https://github.com/microsoft/vcpkg.git /opt/vcpkg \
+# Full history: vcpkg resolves the MXL manifest's baseline from it.
+RUN git clone https://github.com/microsoft/vcpkg.git /opt/vcpkg \
+ && git -C /opt/vcpkg checkout --detach "${VCPKG_REF}" \
  && /opt/vcpkg/bootstrap-vcpkg.sh -disableMetrics
 ENV VCPKG_ROOT=/opt/vcpkg
 
@@ -37,9 +49,10 @@ ENV NDI_RUNTIME_DIR_V6=/usr/local/lib
 ENV NDI_RUNTIME_DIR_V5=/usr/local/lib
 
 # MXL SDK and tools
-RUN git clone --depth 1 https://github.com/dmf-mxl/mxl.git /src/mxl
+RUN git clone --filter=blob:none https://github.com/dmf-mxl/mxl.git /src/mxl \
+ && git -C /src/mxl checkout --detach "${MXL_REF}"
 # The MXL CMake preset looks for vcpkg under $HOME, which is /root in the build
-RUN ln -sfn /opt/vcpkg /root/vcpkg && git -C /opt/vcpkg fetch --unshallow
+RUN ln -sfn /opt/vcpkg /root/vcpkg
 ENV CMAKE_POLICY_VERSION_MINIMUM=3.5
 WORKDIR /src/mxl
 RUN cmake --preset Linux-GCC-Release \
@@ -55,9 +68,9 @@ WORKDIR /src/mxl/rust
 RUN cargo build --release
 
 # NDI GStreamer plugin
-RUN git clone --depth 1 \
-      https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git \
-      /src/gst-plugins-rs
+RUN git clone --filter=blob:none \
+      https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git /src/gst-plugins-rs \
+ && git -C /src/gst-plugins-rs checkout --detach "${GST_PLUGINS_RS_REF}"
 WORKDIR /src/gst-plugins-rs
 RUN cargo build --release -p gst-plugin-ndi
 
@@ -73,16 +86,23 @@ RUN gst-inspect-1.0 mxlsink >/dev/null && gst-inspect-1.0 ndisrc >/dev/null
 
 # Autoframing deps
 RUN pip3 install --break-system-packages --no-cache-dir \
-      opencv-python-headless \
+      "opencv-python-headless==${OPENCV_VERSION}" \
  && mkdir -p /opt/models \
  && wget -qO /opt/models/face_detection_yunet_2023mar.onnx \
-      https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx \
- && test -s /opt/models/face_detection_yunet_2023mar.onnx
+      "https://github.com/opencv/opencv_zoo/raw/${YUNET_REF}/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" \
+ && echo "${YUNET_SHA256}  /opt/models/face_detection_yunet_2023mar.onnx" | sha256sum -c -
 
 # gst-device-monitor-1.0 and friends, for debugging discovery by hand
 RUN apt-get update && apt-get install -y --no-install-recommends \
       gstreamer1.0-plugins-base-apps \
     && rm -rf /var/lib/apt/lists/*
+
+# PTP (linuxptp: ptp4l, phc2sys, pmc) and interface tools for the GUI, plus a
+# check that the RTP and level elements used by aes67-out are present.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      linuxptp ethtool iproute2 \
+    && rm -rf /var/lib/apt/lists/* \
+ && gst-inspect-1.0 rtpL24pay >/dev/null && gst-inspect-1.0 level >/dev/null
 
 # Baked-in copies. docker-compose.yml also bind-mounts these so edits
 # on the host apply with a container restart.

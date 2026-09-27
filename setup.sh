@@ -10,6 +10,8 @@
 #   ./setup.sh --source "PC (vMix - Output 1)"
 #   ./setup.sh --accept-ndi-eula     skip the EULA prompt (you have read it)
 #   ./setup.sh --skip-build          everything except the image build and start
+#   ./setup.sh --disable-ntp         turn off NTP on this VM without asking, for PTP
+#   ./setup.sh --keep-ntp            leave NTP running without asking
 #
 # Safe to run again. Each step checks whether it is already done.
 # A full log is written to setup.log next to this script.
@@ -24,13 +26,16 @@ NDI_WORK="$HOME/src/ndi-sdk"
 SOURCE=""
 ACCEPT_EULA=no
 SKIP_BUILD=no
+NTP_CHOICE=ask
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --source)          SOURCE="${2:-}"; shift 2 ;;
     --accept-ndi-eula) ACCEPT_EULA=yes; shift ;;
     --skip-build)      SKIP_BUILD=yes; shift ;;
-    -h|--help)         sed -n '5,16p' "$0"; exit 0 ;;
+    --disable-ntp)     NTP_CHOICE=disable; shift ;;
+    --keep-ntp)        NTP_CHOICE=keep; shift ;;
+    -h|--help)         sed -n '5,18p' "$0"; exit 0 ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
@@ -55,7 +60,8 @@ ok "$PRETTY_NAME"
 
 [ "$(uname -m)" = "x86_64" ] || die "The NDI runtime used here is x86_64 only."
 
-for f in Dockerfile docker-compose.yml autoframe.py env.example gui/Dockerfile gui/app.py scripts/run-ingest.sh scripts/ndi-mode.sh scripts/lab-apply.sh; do
+for f in Dockerfile docker-compose.yml autoframe.py env.example gui/Dockerfile gui/app.py scripts/run-ingest.sh scripts/ndi-mode.sh scripts/lab-apply.sh \
+         scripts/ptp_common.py scripts/run-ptp.py scripts/aes67_out.py; do
   [ -f "$f" ] || die "Missing $f. Run setup.sh from inside the unzipped mxl-lab folder."
 done
 ok "lab files present"
@@ -68,10 +74,10 @@ else
 fi
 
 mem_gb=$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo)
-[ "$mem_gb" -ge 12 ] && ok "${mem_gb} GB RAM" || warn "${mem_gb} GB RAM. 16 GB is recommended."
+if [ "$mem_gb" -ge 12 ]; then ok "${mem_gb} GB RAM"; else warn "${mem_gb} GB RAM. 16 GB is recommended."; fi
 
 disk_gb=$(df -BG --output=avail "$LAB_DIR" | tail -1 | tr -dc '0-9')
-[ "$disk_gb" -ge 30 ] && ok "${disk_gb} GB free disk" || warn "${disk_gb} GB free. The image build needs about 30 GB."
+if [ "$disk_gb" -ge 30 ]; then ok "${disk_gb} GB free disk"; else warn "${disk_gb} GB free. The image build needs about 30 GB."; fi
 
 sudo -v || die "sudo is required."
 # keep sudo alive for the long build
@@ -87,7 +93,7 @@ ok "packages installed"
 # ------------------------------------------------------------------- avahi
 step "Enabling mDNS (avahi) for NDI discovery"
 sudo systemctl enable --now avahi-daemon >/dev/null 2>&1
-systemctl is-active --quiet avahi-daemon && ok "avahi-daemon running" || die "avahi-daemon did not start"
+if systemctl is-active --quiet avahi-daemon; then ok "avahi-daemon running"; else die "avahi-daemon did not start"; fi
 
 # ---------------------------------------------------------------- firewall
 step "Firewall"
@@ -95,10 +101,10 @@ if command -v ufw >/dev/null && sudo ufw status | grep -q "Status: active"; then
   gui_port=$(grep -E '^GUI_PORT=' .env 2>/dev/null | cut -d= -f2 || true)
   gui_port=${gui_port:-8080}
   for rule in 5353/udp 5959:5969/tcp 5959:5969/udp 6960:6970/tcp 6960:6970/udp \
-              7960:7970/tcp 7960:7970/udp "${gui_port}/tcp"; do
+              7960:7970/tcp 7960:7970/udp "${gui_port}/tcp" 319/udp 320/udp 9875/udp; do
     sudo ufw allow "$rule" >/dev/null
   done
-  ok "ufw rules added for NDI and the GUI on ${gui_port}"
+  ok "ufw rules added for NDI, PTP (319, 320), SAP (9875) and the GUI on ${gui_port}"
 else
   ok "ufw not active, nothing to open"
 fi
@@ -107,9 +113,40 @@ fi
 step "MXL domain at /dev/shm/mxl"
 echo "d /dev/shm/mxl 0777 root root -" | sudo tee /etc/tmpfiles.d/mxl.conf >/dev/null
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/mxl.conf
-[ -d /dev/shm/mxl ] && ok "created, and recreated at every boot" || die "could not create /dev/shm/mxl"
+if [ -d /dev/shm/mxl ]; then ok "created, and recreated at every boot"; else die "could not create /dev/shm/mxl"; fi
 shm_gb=$(df -BG --output=size /dev/shm | tail -1 | tr -dc '0-9')
 ok "/dev/shm is ${shm_gb} GB"
+
+# --------------------------------------------------------------- time sync
+step "Time sync (for PTP)"
+# The ptp function steers this VM's clock. An NTP client steering it too makes
+# the two fight, so it has to be off while PTP is in use.
+ntp_active=""
+for svc in systemd-timesyncd chrony chronyd ntp ntpsec; do
+  systemctl is-active --quiet "$svc" 2>/dev/null && ntp_active="$ntp_active $svc"
+done
+ntp_active=${ntp_active# }
+if [ -z "$ntp_active" ]; then
+  ok "no NTP client running, PTP can steer the clock"
+else
+  if [ "$NTP_CHOICE" = ask ]; then
+    if [ -t 0 ]; then
+      echo "    NTP is running on this VM ($ntp_active). If you will use PTP from the GUI,"
+      echo "    NTP has to be off. You can turn it back on with: sudo systemctl enable --now $ntp_active"
+      read -r -p "    Turn NTP off now? [y/N] " answer
+      [[ "$answer" =~ ^[Yy] ]] && NTP_CHOICE=disable || NTP_CHOICE=keep
+    else
+      NTP_CHOICE=keep
+    fi
+  fi
+  if [ "$NTP_CHOICE" = disable ]; then
+    for svc in $ntp_active; do sudo systemctl disable --now "$svc" >/dev/null 2>&1 || true; done
+    sudo timedatectl set-ntp false >/dev/null 2>&1 || true
+    ok "turned off: $ntp_active"
+  else
+    warn "NTP left running ($ntp_active). Turn it off before using PTP, or run setup.sh --disable-ntp."
+  fi
+fi
 
 # ------------------------------------------------------------------ docker
 step "Docker"
@@ -253,7 +290,7 @@ if [ -n "$SOURCE" ]; then
   set_env NDI_SRC "$SOURCE"
   current_src="$SOURCE"
 fi
-[ -n "$current_src" ] && ok "NDI source: $current_src" || ok "NDI source not set, choose it in the GUI"
+if [ -n "$current_src" ]; then ok "NDI source: $current_src"; else ok "NDI source not set, choose it in the GUI"; fi
 
 mkdir -p config
 
@@ -281,34 +318,43 @@ ok "mxl-lab-gui:latest built"
 step "Starting"
 $DOCKER compose create >/dev/null
 # The discovery server container always exists so the GUI can start and stop it.
-$DOCKER compose up -d --no-deps --force-recreate gui ndi-discovery
+$DOCKER compose up -d --no-deps --force-recreate gui ndi-discovery ptp
 [ "$ndi_mode" = local ] || $DOCKER stop mxl-ndi-discovery >/dev/null
+# aes67-out is started by the ordered start below, and only when turned on in the GUI
+$DOCKER compose create --force-recreate aes67-out >/dev/null
 if [ -n "$current_src" ]; then
-  # Start the four functions in order with a clean MXL domain. Starting them
+  # Start the media functions in order with a clean MXL domain. Starting them
   # all at once can leave an output attached to a flow that is being replaced.
   $DOCKER compose create --force-recreate ndi-ingest autoframe ndi-out-original ndi-out-vertical >/dev/null
-  scripts/lab-apply.sh && ok "all functions started in order" \
-    || warn "Ordered start failed. Check the ingest source name or address in the GUI."
+  if scripts/lab-apply.sh; then
+    ok "all functions started in order"
+  else
+    warn "Ordered start failed. Check the ingest source name or address in the GUI."
+  fi
 else
-  ok "GUI started. The four functions are created but stopped until you pick a source."
+  ok "GUI started. The media functions are created but stopped until you pick a source."
 fi
 
 # ------------------------------------------------------------------ verify
 step "Checking"
-gui_port=$(grep -E '^GUI_PORT=' .env | cut -d= -f2)
-gui_port=${gui_port:-8080}
+# shellcheck source=scripts/gui-api.sh
+. scripts/gui-api.sh
 for _ in $(seq 1 30); do
-  curl -fs "http://127.0.0.1:${gui_port}/api/status" >/dev/null && break
+  gui_curl "$gui_url/api/status" >/dev/null && break
   sleep 2
 done
-curl -fs "http://127.0.0.1:${gui_port}/api/status" >/dev/null \
-  && ok "GUI answering on port ${gui_port}" \
-  || warn "GUI not answering yet. Check: docker compose logs gui"
+if gui_curl "$gui_url/api/status" >/dev/null; then
+  ok "GUI answering at ${gui_url}"
+else
+  warn "GUI not answering yet. Check: docker compose logs gui"
+fi
 
-$DOCKER compose run --rm --no-deps --entrypoint sh autoframe -c \
-  'gst-inspect-1.0 mxlsink >/dev/null && gst-inspect-1.0 ndisrc >/dev/null' \
-  && ok "MXL and NDI GStreamer plugins load in the image" \
-  || warn "A GStreamer plugin failed to load in the image"
+if $DOCKER compose run --rm --no-deps --entrypoint sh autoframe -c \
+  'gst-inspect-1.0 mxlsink >/dev/null && gst-inspect-1.0 ndisrc >/dev/null && gst-inspect-1.0 rtpL24pay >/dev/null && command -v ptp4l >/dev/null'; then
+  ok "MXL, NDI and RTP GStreamer plugins and linuxptp are in the image"
+else
+  warn "A GStreamer plugin or linuxptp is missing from the image"
+fi
 
 if [ -n "$current_src" ]; then
   flow_a=$(grep -E '^FLOW_A=' .env | cut -d= -f2)
@@ -335,6 +381,8 @@ Setup complete.
                   With mdns nothing needs setting on other PCs. With the server
                   on this VM, add ${ip} in NDI Access Manager on each PC.
   NDI outputs:    "MXL Lab Original" and "MXL Lab Vertical" under this VM's hostname
+  AES67 audio:    off until you turn it on in the GUI under Audio out
+  PTP:            off until you turn it on in the GUI under PTP timing
   Logs:           docker compose logs -f <service>
   Log out and back in to use docker without sudo.
 EOF

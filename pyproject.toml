@@ -1,0 +1,16 @@
+# Lint settings for the lab's Python. There is no package to build; this file
+# only configures ruff:  ruff check .
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP", "SIM"]
+ignore = [
+    "E221",   # aligned assignments in constant blocks are intentional
+    "SIM105", # try/except/pass reads more plainly than contextlib.suppress here
+    "SIM108", # ternaries are not always clearer than if/else
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lab", "ptp_common"]

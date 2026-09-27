@@ -70,6 +70,44 @@ services:
       - autoframe
     command: ["/opt/scripts/run-out-vertical.sh"]
 
+  # Reads the MXL audio flow and sends it as AES67 / ST 2110-30 multicast.
+  # Idles when AES67 output is turned off in the GUI.
+  aes67-out:
+    image: mxl-lab:latest
+    container_name: mxl-aes67-out
+    env_file: .env
+    network_mode: host
+    depends_on:
+      - ndi-ingest
+    volumes:
+      - /dev/shm/mxl:/dev/shm/mxl
+      - ./config:/config
+      - ./scripts:/opt/scripts:ro
+      - preview:/preview
+      - ptp-run:/run/ptp
+    shm_size: "1gb"
+    init: true
+    cap_add:
+      - SYS_NICE
+    command: ["python3", "/opt/scripts/aes67_out.py"]
+    restart: unless-stopped
+
+  # ptp4l (and phc2sys with hardware timestamping). Shares the VM's kernel, so
+  # it steers the VM's own clock, the one MXL and aes67-out run on.
+  # Privileged for CAP_SYS_TIME and /dev/ptp*. Idles when PTP is off.
+  ptp:
+    image: mxl-lab:latest
+    container_name: mxl-ptp
+    network_mode: host
+    privileged: true
+    init: true
+    volumes:
+      - ./config:/config:ro
+      - ./scripts:/opt/scripts:ro
+      - ptp-run:/run/ptp
+    command: ["python3", "/opt/scripts/run-ptp.py"]
+    restart: unless-stopped
+
   gui:
     build: ./gui
     image: mxl-lab-gui:latest
@@ -84,8 +122,9 @@ services:
       - /dev/shm/mxl:/dev/shm/mxl
       - ./config:/config
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./gui/app.py:/opt/gui/app.py:ro
-      - ./gui/static:/opt/gui/static:ro
+      - ./gui:/opt/gui:ro
+      - ./scripts:/opt/scripts:ro
+      - ptp-run:/run/ptp
       - ./config/ndi:/root/.ndi:ro
       - /var/run/dbus:/var/run/dbus
       - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
@@ -104,3 +143,10 @@ volumes:
       type: tmpfs
       device: tmpfs
       o: "size=16m"
+  # ptp4l's management socket, shared with the GUI and aes67-out for pmc
+  ptp-run:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=1m"

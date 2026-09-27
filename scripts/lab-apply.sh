@@ -2,16 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 Michael Rankin
 #
-# Start the four media functions in order through the GUI's apply job:
+# Start the media functions in order through the GUI's apply job:
 # stop all, clear the MXL domain, start ingest, wait for Flow A,
 # start autoframe and the outputs, wait for Flow B.
 # Uses the settings in config/pipeline.json, falling back to .env.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-port=$(grep -E '^GUI_PORT=' .env 2>/dev/null | cut -d= -f2 || true)
-port=${port:-8080}
-api="http://127.0.0.1:${port}"
+# shellcheck source=scripts/gui-api.sh
+. scripts/gui-api.sh
 
 body=$(python3 - <<'PY'
 import json
@@ -51,17 +50,17 @@ if python3 -c 'import json,sys; sys.exit(0 if json.loads(sys.argv[1])["NDI_SRC"]
 fi
 
 for _ in $(seq 1 30); do
-  curl -fs "$api/api/status" >/dev/null && break
+  gui_curl "$gui_url/api/status" >/dev/null && break
   sleep 2
 done
-curl -fs "$api/api/status" >/dev/null || { echo "    GUI is not answering on port $port"; exit 1; }
+gui_curl "$gui_url/api/status" >/dev/null || { echo "    GUI is not answering at $gui_url"; exit 1; }
 
-curl -fs -X POST -H 'Content-Type: application/json' -d "$body" "$api/api/pipeline/apply" >/dev/null \
+gui_curl -X POST -H 'Content-Type: application/json' -d "$body" "$gui_url/api/pipeline/apply" >/dev/null \
   || { echo "    The GUI refused the apply request"; exit 1; }
 
 while true; do
   sleep 2
-  job=$(curl -fs "$api/api/pipeline/job") || continue
+  job=$(gui_curl "$gui_url/api/pipeline/job") || continue
   running=$(python3 -c 'import json,sys; print(json.loads(sys.argv[1])["running"])' "$job")
   [ "$running" = "True" ] || break
 done
