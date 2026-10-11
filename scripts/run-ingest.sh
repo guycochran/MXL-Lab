@@ -3,6 +3,20 @@
 # Copyright 2026 Michael Rankin
 set -eu
 eval "$(python3 /opt/scripts/load-config.py)"
+
+# A pilot can request a deeper MXL ring to absorb transport jitter. Write the
+# domain option before mxlsink creates any flows. Existing deployments keep the
+# SDK default unless this variable is explicitly set.
+if [ -n "${MXL_HISTORY_DURATION_NS:-}" ]; then
+  case "$MXL_HISTORY_DURATION_NS" in
+    *[!0-9]*|'') echo "MXL_HISTORY_DURATION_NS must be a positive integer" >&2; exit 2 ;;
+  esac
+  options_tmp="$MXL_DOMAIN/options.json.$$"
+  printf '{"urn:x-mxl:option:history_duration/v1.0": %s}\n' \
+    "$MXL_HISTORY_DURATION_NS" >"$options_tmp"
+  mv "$options_tmp" "$MXL_DOMAIN/options.json"
+fi
+
 # SRC_FPS is either a whole number (50) or a fraction from auto-detect (60000/1001)
 case "$SRC_FPS" in
   */*) FPS_CAPS="$SRC_FPS" ;;
