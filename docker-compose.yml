@@ -68,6 +68,24 @@ services:
       retries: 6
       start_period: 30s
 
+  # Return the Core's stable Program and Preview MXL flows to the NDI network.
+  # These services are independent of the original autoframe output pair.
+  ndi-core-program-out:
+    <<: *common
+    profiles: ["ndi-core-egress"]
+    env_file: ${CORE_EGRESS_ENV_FILE:-env.core-egress.example}
+    container_name: mxl-ndi-core-program-out
+    network_mode: host
+    command: ["/opt/scripts/run-core-out.sh", "program"]
+
+  ndi-core-preview-out:
+    <<: *common
+    profiles: ["ndi-core-egress"]
+    env_file: ${CORE_EGRESS_ENV_FILE:-env.core-egress.example}
+    container_name: mxl-ndi-core-preview-out
+    network_mode: host
+    command: ["/opt/scripts/run-core-out.sh", "preview"]
+
   autoframe:
     <<: *common
     container_name: mxl-autoframe

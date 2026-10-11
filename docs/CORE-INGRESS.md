@@ -67,10 +67,35 @@ The first five-minute gate passes when the adapter and Core remain alive, the ad
 
 Next, perform repeated TAKE operations, stop and restore the NDI sender, and verify that the Core keeps its output flow identities while attributing source loss upstream. Run a 30-minute gate before the eight-hour NDI acceptance test.
 
+## Publish Program and Preview as NDI
+
+The `ndi-core-egress` profile reads the Core's stable Program and Preview MXL
+flows and advertises them as ordinary NDI sources. Copy the example, confirm the
+domain and flow IDs match the Core, and start the two output adapters:
+
+```bash
+cp env.core-egress.example env.core-egress
+sudo env CORE_EGRESS_ENV_FILE=env.core-egress \
+  docker compose --profile ndi-core-egress up -d \
+  ndi-core-program-out ndi-core-preview-out
+```
+
+Receivers should discover `MXL Switcher Program` and `MXL Switcher Preview`.
+Program is the on-air result; Preview is the source queued for the next TAKE.
+Both outputs are video-only in this pilot.
+
+```bash
+sudo docker compose ps ndi-core-program-out ndi-core-preview-out
+sudo docker compose logs --no-color \
+  ndi-core-program-out ndi-core-preview-out
+```
+
 ## Stop
 
 ```bash
 docker compose --profile ndi-core-ingress stop ndi-core-ingress
+docker compose --profile ndi-core-egress stop \
+  ndi-core-program-out ndi-core-preview-out
 ```
 
 Stopping the profile does not remove its MXL flow directories. Remove only the three UUID directories named in `env.core-ingress` when a clean restart is required.
