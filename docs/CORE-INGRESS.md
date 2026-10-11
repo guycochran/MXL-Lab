@@ -18,9 +18,10 @@ export CORE_INGRESS_ENV_FILE=env.core-ingress
 ```
 
 Set `NDI_SRC` to the exact discovered source name or set `NDI_URL` to a sender address. Review the three flow UUIDs before starting.
-`MXL_HISTORY_DURATION_NS=300000000` keeps 300 ms of flow history for the pilot,
-providing enough margin for a four-frame Core input delay at 29.97 fps. The
-pilot Core uses a bounded 20 ms read wait to absorb NDI scheduling jitter.
+`MXL_HISTORY_DURATION_NS=1000000000` keeps one second of flow history for the
+pilot. That lets the faster synthetic source remain readable while the Core
+uses a five-frame input delay to absorb brief NDI scheduling jitter. The pilot
+Core also uses a bounded 20 ms read wait.
 
 Create the isolated shared-memory directory on the pilot host:
 
