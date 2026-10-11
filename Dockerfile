@@ -85,7 +85,7 @@ ENV LD_LIBRARY_PATH=/usr/local/lib
 RUN gst-inspect-1.0 mxlsink >/dev/null && gst-inspect-1.0 ndisrc >/dev/null
 
 # Autoframing deps
-RUN pip3 install --break-system-packages --no-cache-dir \
+RUN pip3 install --break-system-packages --ignore-installed --no-cache-dir \
       "opencv-python-headless==${OPENCV_VERSION}" \
  && mkdir -p /opt/models \
  && wget -qO /opt/models/face_detection_yunet_2023mar.onnx \
