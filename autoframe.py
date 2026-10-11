@@ -69,7 +69,7 @@ def setting(key, default):
     return _pcfg.get(key, os.environ.get(key, default))
 
 
-DOMAIN   = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl")
+DOMAIN   = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl/domain_ndi_lab")
 FLOW_IN  = os.environ["FLOW_A"]
 FLOW_OUT = os.environ["FLOW_B"]
 

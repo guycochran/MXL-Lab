@@ -15,7 +15,7 @@ PIPELINE_CFG = os.path.join(CONFIG_DIR, "pipeline.json")
 TUNING_CFG   = os.path.join(CONFIG_DIR, "autoframe.json")
 STATUS_IN    = os.path.join(CONFIG_DIR, "autoframe-status.json")
 PREVIEW_IN   = os.path.join(os.environ.get("PREVIEW_DIR", "/preview"), "preview.bin")
-DOMAIN       = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl")
+DOMAIN       = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl/domain_ndi_lab")
 FLOW_A       = os.environ.get("FLOW_A", "")
 FLOW_B       = os.environ.get("FLOW_B", "")
 FLOW_AUDIO   = os.environ.get("FLOW_AUDIO", "7fbec3b1-1b0f-417d-9059-8b94a47197ef")
@@ -116,4 +116,3 @@ def pipeline_settings():
         "OUT_H":   int(cfg.get("OUT_H", env.get("OUT_H", 1920))),
         "SCALER":  cfg.get("SCALER", env.get("SCALER", "lanczos")),
     }
-

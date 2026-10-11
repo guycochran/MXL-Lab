@@ -47,7 +47,7 @@ flowchart LR
     GUI -. tunes .-> AF
 ```
 
-Each box is its own container. They share media through MXL flows in `/dev/shm/mxl`, so frames and samples move between them without being copied over the network or re-encoded.
+Each box is its own container. They share media through MXL flows in an isolated child domain under `/dev/shm/mxl`, so frames and samples move between them without being copied over the network or re-encoded.
 
 - **ndi-ingest** receives the NDI source and writes its video to MXL Flow A and its audio to the MXL audio flow.
 - **autoframe** reads Flow A, finds faces with the YuNet model in OpenCV, and moves a 9:16 crop window to follow them. The result goes to Flow B. All pixel work stays in GStreamer; Python only moves the crop.
@@ -105,7 +105,7 @@ The script:
 1. Checks the VM: Ubuntu, x86_64, AVX2, RAM and free disk.
 2. Installs host packages and starts avahi for mDNS.
 3. Opens the NDI, PTP, SAP and GUI ports, if `ufw` is active.
-4. Creates `/dev/shm/mxl` and a rule that recreates it at every boot.
+4. Creates the configured child domain, `/dev/shm/mxl/domain_ndi_lab` by default, and a rule that recreates it at every boot.
 5. Offers to turn off NTP on the VM, which PTP needs (see [PTP](#ptp)).
 6. Installs Docker.
 7. Downloads the NDI SDK and runs its installer so you can accept the licence, then copies the NDI runtime and Discovery Server into `ndi/`.
@@ -213,8 +213,8 @@ sudo apt-get update
 sudo apt-get install -y ca-certificates curl wget tar unzip python3 avahi-daemon avahi-utils
 sudo systemctl enable --now avahi-daemon
 
-# MXL domain, recreated at every boot
-echo "d /dev/shm/mxl 0777 root root -" | sudo tee /etc/tmpfiles.d/mxl.conf
+# Isolated MXL domain, recreated at every boot
+echo "d /dev/shm/mxl/domain_ndi_lab 0777 root root -" | sudo tee /etc/tmpfiles.d/mxl.conf
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/mxl.conf
 
 # PTP steers the clock, so NTP has to be off if you will use it
@@ -287,6 +287,10 @@ scripts/lab-apply.sh
 
 Avoid starting all the media functions at once with a plain `docker compose up -d`. An output can attach to a flow that is being replaced and sit there with no picture. The GUI and `lab-apply.sh` both avoid this.
 
+### Minimal NDI to MXL Core profile
+
+For an isolated adapter that feeds an external MXL Switcher Core, use the `ndi-core-ingress` profile. It starts only NDI receive and MXL publish, with no GUI, autoframing, NDI return output, AES67, or PTP. See [`docs/CORE-INGRESS.md`](docs/CORE-INGRESS.md).
+
 ## Testing
 
 Work through these in order. Each one checks a layer the next depends on.
@@ -340,8 +344,8 @@ Video caps with the source's width and height should print, and it should run th
 **The MXL flows are moving**
 
 ```bash
-ls /dev/shm/mxl
-docker compose exec gui mxl-info -d /dev/shm/mxl -l
+ls /dev/shm/mxl/domain_ndi_lab
+docker compose exec gui mxl-info -d /dev/shm/mxl/domain_ndi_lab -l
 ```
 
 There should be three `.mxl-flow` directories: Flow A, Flow B and the audio flow (if the source sends audio). The Status tab shows each flow's rate. Video should match the source frame rate, and audio should be close to 48k samples a second.
@@ -386,6 +390,7 @@ Settings live in `.env`. Choices made in the GUI are saved in `config/` and take
 | `GUI_USER`, `GUI_PASSWORD` | blank | Optional login for the GUI. Both must be set to turn it on |
 | `NDI_DISCOVERY` | `mdns` | Discovery method for a fresh install |
 | `FLOW_A`, `FLOW_B`, `FLOW_AUDIO` | fixed UUIDs | MXL flow IDs |
+| `MXL_DOMAIN` | `/dev/shm/mxl/domain_ndi_lab` | Isolated child domain. The shared `/dev/shm/mxl` parent is rejected by setup |
 | `UBUNTU_VERSION` | `24.04` | Ubuntu release for the container base |
 
 Audio and PTP are set in the GUI only, and saved in `config/audio.json` and `config/ptp.json`. The current SDP is written to `config/aes67.sdp`.
@@ -408,8 +413,9 @@ Audio and PTP are set in the GUI only, and saved in `config/audio.json` and `con
 mxl-lab/
   setup.sh                 install script
   Dockerfile               lab image: MXL, NDI and MXL GStreamer plugins, OpenCV, YuNet, linuxptp
-  docker-compose.yml       the eight containers
+  docker-compose.yml       the lab services and isolated Core-ingress profile
   env.example              settings template, copied to .env
+  env.core-ingress.example isolated NDI-to-Core pilot settings
   autoframe.py             face tracking and 9:16 crop
   pyproject.toml           lint settings (ruff)
   scripts/
@@ -424,6 +430,9 @@ mxl-lab/
     load-config.py         merges GUI settings over .env
     gui-api.sh             shared helper for scripts that call the GUI's API
     pin-from-image.sh      pin the Dockerfile to the versions in a built image
+    monitor-core-ingress.sh read-only health and resource logger for pilot gates
+  docs/
+    CORE-INGRESS.md        isolated NDI-to-MXL Core build and test workflow
   gui/
     Dockerfile             GUI image, built on the lab image
     app.py                 HTTP API (FastAPI)

@@ -110,10 +110,18 @@ else
 fi
 
 # -------------------------------------------------------------- MXL domain
-step "MXL domain at /dev/shm/mxl"
-echo "d /dev/shm/mxl 0777 root root -" | sudo tee /etc/tmpfiles.d/mxl.conf >/dev/null
+domain_settings=env.example
+[ -f .env ] && domain_settings=.env
+mxl_domain=$(sed -n 's/^MXL_DOMAIN=//p' "$domain_settings" | tail -n 1)
+case "$mxl_domain" in
+  /dev/shm/mxl/*) ;;
+  /dev/shm/mxl) die "MXL_DOMAIN must be a child of /dev/shm/mxl, not the shared parent" ;;
+  *) die "MXL_DOMAIN must be an absolute child path under /dev/shm/mxl" ;;
+esac
+step "MXL domain at $mxl_domain"
+printf 'd %s 0777 root root -\n' "$mxl_domain" | sudo tee /etc/tmpfiles.d/mxl.conf >/dev/null
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/mxl.conf
-if [ -d /dev/shm/mxl ]; then ok "created, and recreated at every boot"; else die "could not create /dev/shm/mxl"; fi
+if [ -d "$mxl_domain" ]; then ok "created, and recreated at every boot"; else die "could not create $mxl_domain"; fi
 shm_gb=$(df -BG --output=size /dev/shm | tail -1 | tr -dc '0-9')
 ok "/dev/shm is ${shm_gb} GB"
 
@@ -359,10 +367,10 @@ fi
 if [ -n "$current_src" ]; then
   flow_a=$(grep -E '^FLOW_A=' .env | cut -d= -f2)
   for _ in $(seq 1 20); do
-    [ -d "/dev/shm/mxl/${flow_a}.mxl-flow" ] && break
+    [ -d "${mxl_domain}/${flow_a}.mxl-flow" ] && break
     sleep 1
   done
-  if [ -d "/dev/shm/mxl/${flow_a}.mxl-flow" ]; then
+  if [ -d "${mxl_domain}/${flow_a}.mxl-flow" ]; then
     ok "Flow A is being written"
   else
     warn "Flow A has not appeared. Check the source name and: docker compose logs ndi-ingest"

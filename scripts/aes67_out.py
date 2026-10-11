@@ -33,7 +33,7 @@ from gi.repository import GLib, Gst  # noqa: E402
 sys.path.insert(0, "/opt/scripts")
 import ptp_common as pc  # noqa: E402
 
-DOMAIN = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl")
+DOMAIN = os.environ.get("MXL_DOMAIN", "/dev/shm/mxl/domain_ndi_lab")
 FLOW = os.environ.get("FLOW_AUDIO", "7fbec3b1-1b0f-417d-9059-8b94a47197ef")
 STATUS_OUT = os.path.join(os.environ.get("PREVIEW_DIR", "/preview"), "audio-status.json")
 LEVELS_OUT = os.path.join(os.environ.get("PREVIEW_DIR", "/preview"), "audio-levels.json")

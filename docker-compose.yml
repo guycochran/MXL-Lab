@@ -47,6 +47,27 @@ services:
     network_mode: host
     command: ["/opt/scripts/run-ingest.sh"]
 
+  # Minimal NDI-to-MXL adapter for integration with an external MXL Core.
+  # Start only this service with:
+  #   docker compose --profile ndi-core-ingress up -d ndi-core-ingress
+  ndi-core-ingress:
+    <<: *common
+    profiles: ["ndi-core-ingress"]
+    env_file: ${CORE_INGRESS_ENV_FILE:-env.core-ingress.example}
+    build:
+      context: .
+      args:
+        UBUNTU: ${UBUNTU_VERSION:-24.04}
+    container_name: mxl-ndi-core-ingress
+    network_mode: host
+    command: ["/opt/scripts/run-ingest.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -d \"$${MXL_DOMAIN}/$${FLOW_A}.mxl-flow\""]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+
   autoframe:
     <<: *common
     container_name: mxl-autoframe

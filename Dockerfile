@@ -110,5 +110,5 @@ COPY autoframe.py /opt/autoframe.py
 COPY scripts/ /opt/scripts/
 RUN chmod +x /opt/scripts/*
 
-ENV MXL_DOMAIN=/dev/shm/mxl
+ENV MXL_DOMAIN=/dev/shm/mxl/domain_ndi_lab
 WORKDIR /opt

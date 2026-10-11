@@ -3,7 +3,6 @@
 """Ordered changes to the running lab: one at a time, in the background, with a log for the page."""
 import os
 import re
-import shutil
 import threading
 import time
 import traceback
@@ -12,6 +11,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException
 
 from .docker_ctl import container
+from .mxl_domain import clear_owned_flows
 from .settings import DOMAIN, FLOW_A, FLOW_AUDIO, FLOW_B, PIPELINE_CFG, pc, pipeline_settings, write_json_atomic
 
 
@@ -74,15 +74,8 @@ class ApplyJob:
             container(svc).stop(timeout=5)
             self._say(f"Stopped {svc}")
 
-        removed = 0
-        for entry in os.listdir(DOMAIN):
-            path = os.path.join(DOMAIN, entry)
-            if os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
-            else:
-                os.unlink(path)
-            removed += 1
-        self._say(f"Cleared MXL domain ({removed} entries)")
+        removed = clear_owned_flows(DOMAIN, (FLOW_A, FLOW_B, FLOW_AUDIO))
+        self._say(f"Cleared {len(removed)} lab-owned MXL flows")
 
         container("ndi-ingest").start()
         self._say("Started ndi-ingest, waiting for Flow A")
@@ -210,4 +203,3 @@ def startup_sequence(job, ptpw):
         job.start(settings if settings["NDI_SRC"] else None, first, kind="ptp", audio=True)
     except HTTPException:
         pass
-

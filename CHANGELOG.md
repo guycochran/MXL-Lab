@@ -2,6 +2,18 @@
 
 All notable changes to this fork. Versions follow [semantic versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- An isolated `ndi-core-ingress` Compose profile for feeding an external MXL Switcher Core without starting the rest of the lab.
+- A read-only pilot monitor, dedicated example configuration, deployment guide, and tests for flow cleanup safety.
+
+### Changed
+
+- The default MXL domain is now the dedicated child directory `/dev/shm/mxl/domain_ndi_lab`.
+- Media restarts remove only the three configured lab-owned flows; they no longer clear an entire MXL domain.
+
 ## 3.0.0
 
 Adds audio, PTP and a reworked GUI to the original lab ([mykeman/MXL-Lab](https://github.com/mykeman/MXL-Lab)).
