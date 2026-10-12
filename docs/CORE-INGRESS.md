@@ -85,6 +85,21 @@ The first five-minute gate passes when the adapter and Core remain alive, the ad
 
 Next, perform repeated TAKE operations, stop and restore the NDI sender, and verify that the Core keeps its output flow identities while attributing source loss upstream. Run a 30-minute gate before the eight-hour NDI acceptance test.
 
+For a controlled container-recovery test, use the guarded helper rather than a
+bare `docker compose up`. The helper always reapplies the correct untracked
+environment file, refuses a blank source or a shared parent domain, interrupts
+only the selected ingress, and waits for both container health and Flow A:
+
+```sh
+scripts/recreate-core-ingress.sh a
+scripts/recreate-core-ingress.sh b
+```
+
+`OUTAGE_SECONDS` defaults to 3 and `RECOVERY_TIMEOUT` defaults to 90. A bare
+recreation without `CORE_INGRESS_ENV_FILE` or `CORE_INGRESS_B_ENV_FILE` falls
+back to the blank example configuration and must not be used as a recovery
+test.
+
 ## Publish Program and Preview as NDI
 
 The `ndi-core-egress` profile reads the Core's stable Program and Preview MXL
