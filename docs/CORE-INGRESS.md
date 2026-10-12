@@ -116,6 +116,37 @@ defaults require at least a 24-frame common window, at most 4 frames of source
 skew, and at most one NDI ingest startup retry. Override those bounds only when
 the operating format and buffer history justify different values.
 
+For a spaced soak rather than a rapid recovery sequence, set
+`RECOVERY_INTERVAL_SECONDS`. Resource snapshots for the Core, both ingresses,
+and both outputs are saved before and after each recovery:
+
+```sh
+ROUNDS=5 RECOVERY_INTERVAL_SECONDS=180 \
+  scripts/run-core-ingress-recovery-gate.sh run-recovery-soak
+```
+
+### Validated dual-NIC recovery result
+
+A loaded two-source pilot completed this 10-event spaced gate after moving the
+sender on the second subnet from a routed path to a dedicated Layer-2 NIC. All
+five recoveries of each ingress passed on the first startup attempt. Each event
+produced exactly one aggregate and one per-source reader reopen; Program and
+Preview receivers progressed continuously with zero reported drops.
+
+Across the run, validity, early/late, read-timeout, synchronization-timeout,
+and selected-input-regression counters remained at zero. The recovered common
+window was 27-28 frames and recovered source skew was 0-1 frame. The 10
+intentional interruptions added 2,722 held grains and 1,063 no-common-window
+observations while output continued. Core RSS remained 320.1-320.3 MiB; ingress
+RSS remained 185.8-194.6 MiB and 183.2-187.4 MiB; the two NDI outputs remained
+26.9-28.0 MiB and 37.2-37.3 MiB. All permanent containers finished healthy
+with zero Docker restarts.
+
+This result supports using a directly attached interface for a sender on a
+separate media subnet. Verify the live socket's source address and kernel route
+before accepting recovery evidence: an established connection can otherwise
+retain its old routed source address after a new interface is added.
+
 ## Publish Program and Preview as NDI
 
 The `ndi-core-egress` profile reads the Core's stable Program and Preview MXL

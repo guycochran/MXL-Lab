@@ -5,13 +5,14 @@ set -eu
 
 rounds=${ROUNDS:-5}
 settle_seconds=${SETTLE_SECONDS:-10}
+recovery_interval_seconds=${RECOVERY_INTERVAL_SECONDS:-0}
 max_ingress_restarts=${MAX_INGRESS_RESTARTS:-1}
 min_recovered_window=${MIN_RECOVERED_WINDOW:-24}
 max_recovered_skew=${MAX_RECOVERED_SKEW:-4}
 health_url=${CORE_HEALTH_URL:-http://127.0.0.1:18080/api/mxl/v1/health}
 output_dir=${1:-"recovery-gate-$(date -u +%Y%m%dT%H%M%SZ)"}
 
-case "$rounds:$settle_seconds:$max_ingress_restarts:$min_recovered_window:$max_recovered_skew" in
+case "$rounds:$settle_seconds:$recovery_interval_seconds:$max_ingress_restarts:$min_recovered_window:$max_recovered_skew" in
   *[!0-9:]*|:*) echo "gate thresholds must be non-negative integers" >&2; exit 2 ;;
 esac
 [ "$rounds" -gt 0 ] || { echo "ROUNDS must be greater than zero" >&2; exit 2; }
@@ -41,6 +42,15 @@ mkdir -p "$output_dir"
 output_dir=$(CDPATH= cd -- "$output_dir" && pwd)
 events="$output_dir/events.tsv"
 printf 'utc\tcycle\ttarget\tresult\ttarget_restarts\treopen_delta\theld_delta\tno_common_delta\tlast_window\tlast_skew\tprogram_rendered\tpreview_rendered\n' >"$events"
+cat >"$output_dir/gate-config.txt" <<EOF
+rounds=$rounds
+settle_seconds=$settle_seconds
+recovery_interval_seconds=$recovery_interval_seconds
+max_ingress_restarts=$max_ingress_restarts
+min_recovered_window=$min_recovered_window
+max_recovered_skew=$max_recovered_skew
+health_url=$health_url
+EOF
 
 health_snapshot() {
   destination=$1
@@ -54,6 +64,12 @@ container_snapshot() {
   for name in "$core" "$ingress_a" "$ingress_b" "$program_out" "$preview_out" "$program_probe" "$preview_probe"; do
     docker inspect --format '{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.RestartCount}}' "$name" >>"$destination"
   done
+}
+
+resource_snapshot() {
+  destination=$1
+  docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}|{{.NetIO}}|{{.BlockIO}}' \
+    "$core" "$ingress_a" "$ingress_b" "$program_out" "$preview_out" >"$destination"
 }
 
 validate_containers() {
@@ -99,6 +115,7 @@ check_unchanged() {
 validate_containers
 health_snapshot "$output_dir/health-baseline.json"
 container_snapshot "$output_dir/containers-baseline.txt"
+resource_snapshot "$output_dir/resources-baseline.txt"
 set -- $(probe_totals "$program_probe"); previous_program=${1:-0}; program_drops=${2:-999}
 set -- $(probe_totals "$preview_probe"); previous_preview=${1:-0}; preview_drops=${2:-999}
 [ "$program_drops" -eq 0 ] && [ "$preview_drops" -eq 0 ] || {
@@ -115,6 +132,7 @@ for round in $(seq 1 "$rounds"); do
     after="$output_dir/$prefix-health-after.json"
     health_snapshot "$before"
     container_snapshot "$output_dir/$prefix-containers-before.txt"
+    resource_snapshot "$output_dir/$prefix-resources-before.txt"
 
     case "$target" in
       a) flow=$flow_a ;;
@@ -135,6 +153,7 @@ for round in $(seq 1 "$rounds"); do
 
     health_snapshot "$after"
     container_snapshot "$output_dir/$prefix-containers-after.txt"
+    resource_snapshot "$output_dir/$prefix-resources-after.txt"
     validate_containers
 
     case "$target" in
@@ -186,9 +205,14 @@ for round in $(seq 1 "$rounds"); do
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u +%FT%TZ)" "$cycle" "$target" "$result" "$target_restarts" "$reopen_delta" "$held_delta" "$no_common_delta" \
       "$last_window" "$last_skew" "$program_rendered" "$preview_rendered" >>"$events"
+
+    if [ "$cycle" -lt $((rounds * 2)) ] && [ "$recovery_interval_seconds" -gt 0 ]; then
+      sleep "$recovery_interval_seconds"
+    fi
   done
 done
 
 health_snapshot "$output_dir/health-final.json"
 container_snapshot "$output_dir/containers-final.txt"
+resource_snapshot "$output_dir/resources-final.txt"
 printf 'PASS: %s alternating recoveries completed; evidence=%s\n' "$cycle" "$output_dir" | tee "$output_dir/result.txt"
