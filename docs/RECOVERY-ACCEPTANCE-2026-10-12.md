@@ -71,9 +71,46 @@ After each source returned, the Core reopened the replacement inode, resumed a
 sources. The final receiver totals were 107,625 Program frames and 107,612
 Preview frames, both with zero drops.
 
+## Ten-cycle rolling-recovery gate
+
+The next milestone ran five guarded recoveries of each real NDI ingress,
+alternating A/B while sustained receivers kept both NDI outputs under load.
+The inputs were never interrupted together.
+
+- Result: pass, 10/10 recoveries
+- Planned outage: 3 seconds per recovery
+- Healthy Flow A recovery: 5 seconds in every cycle
+- Replacement flow inode: changed in all 10 cycles
+- Reader reopen delta: exactly +1 for the selected source in every cycle;
+  +10 aggregate
+- Routed-grain delta: +9,648 aggregate; +4,824 per source
+- Held-grain delta: +2,670 total; 262–272 per recovery
+- No-common-window delta: +1,062 total; 102–110 per recovery
+- Recovered common-window width: 26–27 frames
+- Recovered source skew: 1–2 frames
+- Invalid, early, late, timeout, sync-timeout, sync-early, sync-late, and
+  selected-input-regression deltas: 0
+- Ingress startup retries in the final gate: 0
+- All seven containers ended running with zero restarts.
+- Program receiver: 9,244 → 14,784 frames across recorded cycles, zero drops
+- Preview receiver: 7,938 → 13,481 frames across recorded cycles, zero drops
+
+Two exploratory attempts sharpened the gate instead of being discarded. One
+Ingress A recreation hit a transient NDI data-stream error 0.22 seconds after
+launch, restarted once, and then recovered with uninterrupted zero-drop
+outputs. A later recovery stabilized at 2 frames of skew with a still-healthy
+26-frame common window. The final gate therefore records bounded ingest retries
+and judges alignment by both available common-window depth and skew instead of
+assuming that every pair of independent NDI senders will remain within one
+frame after reacquisition.
+
+The reusable gate is `scripts/run-core-ingress-recovery-gate.sh`. The raw final
+evidence was retained with the private acceptance records rather than
+published because it contains operational container and host details.
+
 ## Conclusion
 
-The two-real-source steady-state path and isolated source-flow replacement path
-both pass. The next acceptance step is a longer loaded run that includes
-periodic guarded recovery of each ingress, never both at once.
-
+The two-real-source steady-state path, isolated source-flow replacement, and
+repeated rolling-recovery path all pass. The next acceptance step is a longer
+soak with periodic guarded recoveries, followed by deliberate sender/network
+fault injection and operational packaging.

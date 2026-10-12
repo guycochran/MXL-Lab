@@ -100,6 +100,22 @@ recreation without `CORE_INGRESS_ENV_FILE` or `CORE_INGRESS_B_ENV_FILE` falls
 back to the blank example configuration and must not be used as a recovery
 test.
 
+After both Program and Preview have sustained receiver probes, exercise
+repeated alternating recovery with the acceptance gate:
+
+```sh
+ROUNDS=5 scripts/run-core-ingress-recovery-gate.sh run-recovery-gate
+```
+
+Each round recreates A and then B; the two inputs are never interrupted
+together. The gate captures health and container state around every recovery
+and requires exactly one Core reader reopen for the selected flow, continuous
+zero-drop receiver progress, unchanged validity/timing/synchronization error
+counters, healthy permanent services, and bounded recovered alignment. The
+defaults require at least a 24-frame common window, at most 4 frames of source
+skew, and at most one NDI ingest startup retry. Override those bounds only when
+the operating format and buffer history justify different values.
+
 ## Publish Program and Preview as NDI
 
 The `ndi-core-egress` profile reads the Core's stable Program and Preview MXL
