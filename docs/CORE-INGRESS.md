@@ -63,6 +63,24 @@ docker exec mxl-ndi-core-ingress mxl-info -d /dev/shm/mxl/domain_ndi_lab -l
 
 Configure one Core input with `FLOW_A` from `env.core-ingress`. Keep a known synthetic source as the second input. Use a Core configuration and control port dedicated to the pilot.
 
+For a two-real-source gate, copy `env.core-ingress-b.example` to
+`env.core-ingress-b`, assign the second sender by `NDI_SRC` or `NDI_URL`, and
+start both services:
+
+```sh
+export CORE_INGRESS_ENV_FILE=env.core-ingress
+export CORE_INGRESS_B_ENV_FILE=env.core-ingress-b
+docker compose --profile ndi-core-ingress up -d \
+  ndi-core-ingress ndi-core-ingress-b
+```
+
+The second service publishes its source as `FLOW_A` from its own environment
+file. The provided example uses the pilot's second video UUID and a distinct
+audio UUID. Set `SRC_FPS` to the Core operating point so `videorate` normalizes
+senders whose native cadence differs slightly, such as 30/1 and 30000/1001.
+Set `ENABLE_AUDIO=false` for a video-only sender so an absent or unusable audio
+pad cannot hold up the video ingress pipeline.
+
 The first five-minute gate passes when the adapter and Core remain alive, the adapter health check stays healthy, the Core reports zero invalid, too-early, too-late, timeout, reader-reopen, and synchronization-timeout counters, and RSS stabilizes after startup.
 
 Next, perform repeated TAKE operations, stop and restore the NDI sender, and verify that the Core keeps its output flow identities while attributing source loss upstream. Run a 30-minute gate before the eight-hour NDI acceptance test.

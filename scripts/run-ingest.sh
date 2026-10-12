@@ -35,7 +35,7 @@ if [ -n "${NDI_URL:-}" ]; then
   set -- url-address="$NDI_URL"
   echo "ndi-ingest: '$NDI_SRC' at $NDI_URL (direct) -> ${SRC_W}x${SRC_H} @ ${FPS_CAPS}, ${AUDIO_CHANNELS} ch audio"
 else
-  set --
+  set -- ndi-name="$NDI_SRC"
   echo "ndi-ingest: '$NDI_SRC' (discovery) -> ${SRC_W}x${SRC_H} @ ${FPS_CAPS}, ${AUDIO_CHANNELS} ch audio"
 fi
 
@@ -53,8 +53,22 @@ fi
 #   cadence. skip-to-first stops it filling silence back to time zero.
 #   If the source sends no audio, the audio pad never appears and there is
 #   simply no audio flow.
+ENABLE_AUDIO=${ENABLE_AUDIO:-true}
+if [ "$ENABLE_AUDIO" = false ]; then
+  exec gst-launch-1.0 -e \
+    ndisrc "$@" timestamp-mode=receive-time \
+    ! ndisrcdemux name=demux \
+    demux.video \
+      ! queue max-size-buffers=4 leaky=downstream \
+      ! videoscale add-borders=true \
+      ! video/x-raw,width="$SRC_W",height="$SRC_H",pixel-aspect-ratio=1/1 \
+      ! videoconvert ! video/x-raw,format=v210 \
+      ! videorate ! video/x-raw,framerate="$FPS_CAPS" \
+      ! mxlsink flow-id="$FLOW_A" domain="$MXL_DOMAIN"
+fi
+
 exec gst-launch-1.0 -e \
-  ndisrc ndi-name="$NDI_SRC" "$@" timestamp-mode=receive-time \
+  ndisrc "$@" timestamp-mode=receive-time \
   ! ndisrcdemux name=demux \
   demux.video \
     ! queue max-size-buffers=4 leaky=downstream \

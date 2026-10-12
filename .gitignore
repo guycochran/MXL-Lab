@@ -4,6 +4,7 @@ ndi/
 # Local settings and runtime state
 .env
 env.core-ingress
+env.core-ingress-b
 config/*
 !config/.gitkeep
 setup.log

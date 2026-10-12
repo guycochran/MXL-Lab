@@ -68,6 +68,25 @@ services:
       retries: 6
       start_period: 30s
 
+  # Optional second isolated NDI input for two-real-source Core gates.
+  ndi-core-ingress-b:
+    <<: *common
+    profiles: ["ndi-core-ingress"]
+    env_file: ${CORE_INGRESS_B_ENV_FILE:-env.core-ingress-b.example}
+    build:
+      context: .
+      args:
+        UBUNTU: ${UBUNTU_VERSION:-24.04}
+    container_name: mxl-ndi-core-ingress-b
+    network_mode: host
+    command: ["/opt/scripts/run-ingest.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -d \"$${MXL_DOMAIN}/$${FLOW_A}.mxl-flow\""]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+
   # Return the Core's stable Program and Preview MXL flows to the NDI network.
   # These services are independent of the original autoframe output pair.
   ndi-core-program-out:
