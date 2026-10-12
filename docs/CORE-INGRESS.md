@@ -84,6 +84,13 @@ Receivers should discover `MXL Switcher Program` and `MXL Switcher Preview`.
 Program is the on-air result; Preview is the source queued for the next TAKE.
 Both outputs are video-only in this pilot.
 
+The output wrappers watch the MXL flow-directory inode. If Core restarts and
+recreates Program or Preview under the same stable UUID, each wrapper stops its
+stale GStreamer process and reopens the replacement flow automatically. The
+Compose health checks require both the configured flow directory and a live
+GStreamer publisher, so a container cannot report healthy while attached to an
+obsolete shared-memory object.
+
 ```bash
 sudo docker compose ps ndi-core-program-out ndi-core-preview-out
 sudo docker compose logs --no-color \

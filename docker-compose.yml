@@ -77,6 +77,12 @@ services:
     container_name: mxl-ndi-core-program-out
     network_mode: host
     command: ["/opt/scripts/run-core-out.sh", "program"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -d \"$${MXL_DOMAIN}/$${PROGRAM_FLOW}.mxl-flow\" && pgrep -x gst-launch-1.0 >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
 
   ndi-core-preview-out:
     <<: *common
@@ -85,6 +91,12 @@ services:
     container_name: mxl-ndi-core-preview-out
     network_mode: host
     command: ["/opt/scripts/run-core-out.sh", "preview"]
+    healthcheck:
+      test: ["CMD-SHELL", "test -d \"$${MXL_DOMAIN}/$${PREVIEW_FLOW}.mxl-flow\" && pgrep -x gst-launch-1.0 >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 6
+      start_period: 15s
 
   autoframe:
     <<: *common
