@@ -108,9 +108,53 @@ The reusable gate is `scripts/run-core-ingress-recovery-gate.sh`. The raw final
 evidence was retained with the private acceptance records rather than
 published because it contains operational container and host details.
 
+## Eight-hour dual-real direct-path acceptance
+
+The loaded direct-path configuration then ran continuously for eight hours
+with both real NDI sources, alternating TAKE operations, both NDI outputs, and
+two sustained receiver probes. Source A remained on its dedicated media path
+and Source B remained on the management-side media path for the whole run.
+
+- Result: pass
+- Duration: 8:00:01
+- Samples: 874
+- TAKE operations: 479
+- Final revision: 479
+- Routed source-grain delta: +1,713,076 total; +856,538 per source
+- Held-grain delta: +13,092
+- Sync-wait delta: +856,538
+- Adaptive-selection delta: +863,084
+- Selected-input repeat delta: +6,546
+- Selected-input skip-event / skipped-grain delta: +6,504 / +6,546
+- Common-window width: 15–28 frames; 27 frames at completion
+- Source skew: 0–13 frames; 1 frame at completion
+- Invalid, early, late, timeout, reader-reopen, sync-timeout, sync-early,
+  sync-late, no-common-window, and selected-input-regression counters: 0
+- Monitoring errors and gate failures: 0
+- All seven containers remained running with zero restarts through the gate.
+- Both receiver probes remained active without a receive stall or pipeline
+  error. The temporary probes were removed after evidence capture; the five
+  permanent services remained running and healthy.
+- Final state: Program synthetic, Preview NDI
+
+Measured CPU and RSS ranges:
+
+| Service | CPU | RSS |
+| --- | ---: | ---: |
+| Core | 11.89–33.62% | 320.0–322.4 MiB |
+| NDI ingress A | 64.53–111.43% | 194.2–211.1 MiB |
+| NDI ingress B | 20.31–34.67% | 183.3–195.2 MiB |
+| Program NDI output | 29.45–55.86% | 25.80–27.54 MiB |
+| Preview NDI output | 29.18–47.35% | 25.95–28.35 MiB |
+
+Route and established-socket checks throughout the run confirmed that Source
+A used its dedicated interface and address while Source B used its separate
+interface and address. The raw sample stream, route/socket details, and host
+identifiers remain in private operational evidence.
+
 ## Conclusion
 
-The two-real-source steady-state path, isolated source-flow replacement, and
-repeated rolling-recovery path all pass. The next acceptance step is a longer
-soak with periodic guarded recoveries, followed by deliberate sender/network
-fault injection and operational packaging.
+The two-real-source steady-state path, isolated source-flow replacement,
+repeated rolling recovery, and eight-hour loaded direct-path acceptance all
+pass. The next acceptance step is deliberate sender/network fault injection
+and operational packaging.
