@@ -179,12 +179,14 @@ protocol changes. Listener sockets could remain present while no longer
 yielding media to a newly attached receiver.
 
 The reliable multi-output configuration used the NDI Discovery Server already
-supplied with the installed ZoomISO/NDI package. ZoomISO registered each named
-output with that server, and both independent adapters connected by source
-name. Those discovery-based connections remained attached throughout the
-isolated and simultaneous acceptance windows. Multi-output deployments should
-therefore use discovery rather than depending on manually inferred direct
-ports.
+supplied with the installed ZoomISO/NDI package. The server address must be
+entered explicitly in ZoomISO's **Settings > NDI Discovery Server** field; it
+is not enough to configure discovery only on the receiving adapters. ZoomISO
+then registered each named output with that server, and both independent
+adapters connected by source name. Those discovery-based connections remained
+attached throughout the isolated and simultaneous acceptance windows.
+Multi-output deployments should therefore use discovery rather than depending
+on manually inferred direct ports.
 
 ## Next control
 
