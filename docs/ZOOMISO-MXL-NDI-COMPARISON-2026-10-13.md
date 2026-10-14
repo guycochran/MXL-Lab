@@ -114,6 +114,13 @@ All three stages completed with zero monitor errors. Every receiver reported
 zero drops, all containers remained running with zero restarts, and no
 uniqueness window reported a wedge, silence, or reader error.
 
+![Matched 2x2 ZoomISO MXL and NDI output matrix](images/zoomiso-mxl-ndi/zoomiso-mxl-ndi-2x2-output-matrix.png)
+
+**Matched 2x2 test.** Two native MXL and two NDI outputs ran at
+1920x1080p30, pairing the same two participants across both protocols. The
+public crop omits participant identity while preserving the protocol, format,
+and live cadence evidence.
+
 ### Isolated two-output resource result
 
 | Path | ZoomISO average CPU | Adapter average CPU | Combined average CPU | Combined average RSS |
@@ -187,6 +194,13 @@ adapters connected by source name. Those discovery-based connections remained
 attached throughout the isolated and simultaneous acceptance windows.
 Multi-output deployments should therefore use discovery rather than depending
 on manually inferred direct ports.
+
+![ZoomISO NDI Discovery Server setting](images/zoomiso-mxl-ndi/zoomiso-ndi-discovery-settings.png)
+
+**Multi-output NDI discovery.** The Discovery Server address belongs in
+ZoomISO's NDI settings; configuring discovery only on the receiving adapters
+was not sufficient. The hostname in this public screenshot is an illustrative
+replacement, not the private test-network address.
 
 ## Next control
 
