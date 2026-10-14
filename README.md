@@ -297,6 +297,7 @@ Recent integration evidence:
 
 - [Dual-NDI steady-state and recovery acceptance](docs/RECOVERY-ACCEPTANCE-2026-10-12.md)
 - [ZoomISO Cloud to MXL Core acceptance](docs/ZOOMISO-MXL-ACCEPTANCE-2026-10-12.md)
+- [ZoomISO Cloud MXL versus NDI comparison](docs/ZOOMISO-MXL-NDI-COMPARISON-2026-10-13.md)
 
 Work through these in order. Each one checks a layer the next depends on.
 
